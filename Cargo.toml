@@ -7,3 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+wgpu = "0.6.0"
+rodio = "0.12.0"
+wgpu_glyph = "0.10.0"
+winit = "0.23.0"
+futures = "0.3.6"
+ultraviolet = "0.7.4"
+anyhow = "1.0.33"
+shaderc = "0.6.2"
+bytemuck = "1.4.1"
