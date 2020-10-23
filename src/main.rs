@@ -1,3 +1,4 @@
+#![allow(clippy::single_match)]
 pub(crate) use eyre::*;
 use futures::executor::block_on;
 use winit::{
@@ -5,19 +6,23 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
+
 mod render;
 use render::Renderer;
+mod math;
 mod utils;
 
 fn main() -> Result<()> {
     env_logger::init();
     color_eyre::install()?;
+
     let title = env!("CARGO_PKG_NAME");
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().with_title(title).build(&event_loop)?;
 
     let mut state = block_on(Renderer::new(&window))?;
     let mut last_render_time = std::time::Instant::now();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
@@ -54,12 +59,12 @@ fn main() -> Result<()> {
                 let _dt = now - last_render_time;
                 last_render_time = now;
                 state.update();
-                state
-                    .render()
-                    .wrap_err("Error requesting a render frame.")
-                    .unwrap();
+                match state.render() {
+                    Ok(_) => {}
+                    Err(e) => panic!("Panic requesting a render frame with an error:\n {}", e),
+                }
             }
             _ => {}
         }
-    });
+    })
 }

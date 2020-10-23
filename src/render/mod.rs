@@ -1,9 +1,27 @@
 use crate::include_str_from_outdir;
 use eyre::*;
-use wgpu::*;
+use wgpu::{util::*, *};
 use winit::{event::*, window::Window};
 
+use crate::math::Vec2;
+
+mod buffers;
+use buffers::Vertex;
+
 pub const SHADER_ENTRY_POINT_NAME: &str = "main";
+
+#[rustfmt::skip]
+const VERTEXES: &[Vertex; 6] = &[
+    Vertex { pos: Vec2 { x:  0.0, y:  0.5 } },
+    Vertex { pos: Vec2 { x: -0.5, y: -0.5 } },
+    Vertex { pos: Vec2 { x: -0.5, y:  0.5 } },
+    Vertex { pos: Vec2 { x:  0.0, y: -0.5 } },
+    Vertex { pos: Vec2 { x:  0.5, y: -0.5 } },
+    Vertex { pos: Vec2 { x:  0.5, y:  0.5 } },
+
+];
+
+const INDEXES: &[u32; 6] = &[0, 2, 1, 3, 4, 5];
 
 pub struct Renderer {
     instance: Instance,
@@ -15,6 +33,10 @@ pub struct Renderer {
     sc_desc: SwapChainDescriptor,
     render_pipeline: RenderPipeline,
     rp_layout: PipelineLayout,
+
+    vertex_buffer: Buffer,
+    index_buffer: Buffer,
+    num_indices: u32,
 }
 
 impl Renderer {
@@ -23,7 +45,7 @@ impl Renderer {
         let backend_bit = BackendBit::PRIMARY;
         let instance = Instance::new(backend_bit);
         println!(
-            "All available adapters that match {:?} backend bit: {:?}",
+            "All available adapters that match {:?} backends: {:?}",
             backend_bit,
             instance
                 .enumerate_adapters(BackendBit::PRIMARY)
@@ -72,6 +94,19 @@ impl Renderer {
             push_constant_ranges: &[],
         });
 
+        let vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            usage: BufferUsage::VERTEX,
+            contents: bytemuck::cast_slice(VERTEXES),
+        });
+
+        let index_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            usage: BufferUsage::INDEX,
+            contents: bytemuck::cast_slice(INDEXES),
+        });
+        let num_indices = INDEXES.len() as u32;
+
         let mut shader_compiler =
             shaderc::Compiler::new().ok_or_else(|| eyre!("Failed to create shader compiler."))?;
         let render_pipeline = {
@@ -104,7 +139,7 @@ impl Renderer {
                 &device,
                 &rp_layout,
                 sc_desc.format,
-                &[],
+                &[Vertex::DESC],
                 vs_module,
                 fs_module,
             )
@@ -120,18 +155,14 @@ impl Renderer {
             sc_desc,
             render_pipeline,
             rp_layout,
+
+            vertex_buffer,
+            index_buffer,
+            num_indices,
         })
     }
 
     pub fn render(&mut self) -> Result<()> {
-        // let frame = {
-        //     loop {
-        //         if !self.swap_chain.get_current_frame()?.suboptimal {
-        //             break self.swap_chain.get_current_frame()?.output;
-        //         }
-        //     }
-        // };
-
         let frame = self.swap_chain.get_current_frame()?.output;
 
         let mut encoder = self
@@ -158,7 +189,9 @@ impl Renderer {
         });
 
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.draw(0..3, 0..1);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..));
+        render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
 
         drop(render_pass);
 
@@ -216,7 +249,7 @@ fn create_render_pipeline(
         }],
         depth_stencil_state: None,
         vertex_state: VertexStateDescriptor {
-            index_format: IndexFormat::Uint16,
+            index_format: IndexFormat::Uint32,
             vertex_buffers: vertex_desc,
         },
         sample_count: 1,
