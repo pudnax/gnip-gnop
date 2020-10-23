@@ -10,18 +10,24 @@ edition = "2018"
 rodio = "0.12.0"
 wgpu_glyph = "0.10.0"
 futures = "0.3.6"
-ultraviolet = "0.7.4"
 shaderc = "0.6.2"
-bytemuck = "1.4.1"
 winit = "0.23"
 log = "0.4.11"
 env_logger = "0.8.1"
 color-eyre = "0.5.6"
 eyre = "0.6.1"
 
+[dependencies.ultraviolet]
+version = "0.7.4"
+features = ["bytemuck"]
+
 [dependencies.wgpu]
 version = "0.6.0"
 features = ["vulkan-portability", "trace", "replay"]
+
+[dependencies.bytemuck]
+version = "1.4.1"
+features = ["derive"]
 
 [build-dependencies]
 eyre = "0.6.1"
