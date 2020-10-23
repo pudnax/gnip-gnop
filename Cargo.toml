@@ -13,7 +13,7 @@ futures = "0.3.6"
 ultraviolet = "0.7.4"
 shaderc = "0.6.2"
 bytemuck = "1.4.1"
-minifb = "0.19.1"
+winit = "0.23"
 log = "0.4.11"
 env_logger = "0.8.1"
 color-eyre = "0.5.6"
@@ -27,3 +27,6 @@ features = ["vulkan-portability", "trace", "replay"]
 eyre = "0.6.1"
 fs_extra = "1.2"
 glob = "0.3"
+
+[profile.dev.package.'*']
+opt-level = 3

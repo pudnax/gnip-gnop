@@ -1,17 +1,25 @@
 use crate::include_str_from_outdir;
-pub(crate) use eyre::*;
+use eyre::*;
 use wgpu::*;
+use winit::{event::*, window::Window};
+
+pub const SHADER_ENTRY_POINT_NAME: &str = "main";
 
 pub struct Renderer {
     instance: Instance,
-    device: Device,
+    surface: Surface,
     adapter: Adapter,
+    device: Device,
+    queue: Queue,
     swap_chain: SwapChain,
     sc_desc: SwapChainDescriptor,
+    render_pipeline: RenderPipeline,
+    rp_layout: PipelineLayout,
 }
 
 impl Renderer {
-    pub async fn new(window: &minifb::Window, (width, height): (u32, u32)) -> Result<Self> {
+    pub async fn new(window: &Window) -> Result<Self> {
+        let size = window.inner_size();
         let backend_bit = BackendBit::PRIMARY;
         let instance = Instance::new(backend_bit);
         println!(
@@ -52,21 +60,21 @@ impl Renderer {
             usage: TextureUsage::OUTPUT_ATTACHMENT,
             present_mode: PresentMode::Fifo,
             format: TextureFormat::Bgra8UnormSrgb,
-            width,
-            height,
+            width: size.width,
+            height: size.height,
         };
 
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
-        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Main Pipeline Layout Descriptor"),
+        let rp_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("Main Render Pipeline Layout Descriptor"),
             bind_group_layouts: &[],
             push_constant_ranges: &[],
         });
 
-        let shader_compiler =
+        let mut shader_compiler =
             shaderc::Compiler::new().ok_or_else(|| eyre!("Failed to create shader compiler."))?;
-        let pipeline = {
+        let render_pipeline = {
             let vs_src = include_str_from_outdir!("/shaders/shader.vert");
             let fs_src = include_str_from_outdir!("/shaders/shader.frag");
             let vs_spirv = shader_compiler
@@ -74,7 +82,7 @@ impl Renderer {
                     vs_src,
                     shaderc::ShaderKind::Vertex,
                     "shader.vert",
-                    "main",
+                    SHADER_ENTRY_POINT_NAME,
                     None,
                 )
                 .unwrap();
@@ -83,7 +91,7 @@ impl Renderer {
                     fs_src,
                     shaderc::ShaderKind::Fragment,
                     "shader.frag",
-                    "main",
+                    SHADER_ENTRY_POINT_NAME,
                     None,
                 )
                 .unwrap();
@@ -94,15 +102,81 @@ impl Renderer {
 
             create_render_pipeline(
                 &device,
-                &pipeline_layout,
+                &rp_layout,
                 sc_desc.format,
-                vertex_desc,
+                &[],
                 vs_module,
                 fs_module,
             )
         };
 
-        todo!()
+        Ok(Self {
+            instance,
+            surface,
+            adapter,
+            device,
+            queue,
+            swap_chain,
+            sc_desc,
+            render_pipeline,
+            rp_layout,
+        })
+    }
+
+    pub fn render(&mut self) -> Result<()> {
+        // let frame = {
+        //     loop {
+        //         if !self.swap_chain.get_current_frame()?.suboptimal {
+        //             break self.swap_chain.get_current_frame()?.output;
+        //         }
+        //     }
+        // };
+
+        let frame = self.swap_chain.get_current_frame()?.output;
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
+        let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            color_attachments: &[RenderPassColorAttachmentDescriptor {
+                attachment: &frame.view,
+                resolve_target: None,
+                ops: Operations {
+                    load: LoadOp::Clear(Color {
+                        r: 0.1,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
+                    }),
+                    store: true,
+                },
+            }],
+            depth_stencil_attachment: None,
+        });
+
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.draw(0..3, 0..1);
+
+        drop(render_pass);
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        Ok(())
+    }
+
+    pub fn update(&mut self) {}
+
+    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.sc_desc.width = new_size.width;
+        self.sc_desc.height = new_size.height;
+        self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+    }
+
+    pub fn input(&mut self, _event: &WindowEvent) -> bool {
+        false
     }
 }
 
@@ -114,5 +188,39 @@ fn create_render_pipeline(
     vs_module: ShaderModule,
     fs_module: ShaderModule,
 ) -> RenderPipeline {
-    todo!()
+    device.create_render_pipeline(&RenderPipelineDescriptor {
+        label: Some("Main Render Pipeline"),
+        layout: Some(pipeline_layout),
+        vertex_stage: ProgrammableStageDescriptor {
+            module: &vs_module,
+            entry_point: SHADER_ENTRY_POINT_NAME,
+        },
+        fragment_stage: Some(ProgrammableStageDescriptor {
+            module: &fs_module,
+            entry_point: SHADER_ENTRY_POINT_NAME,
+        }),
+        rasterization_state: Some(RasterizationStateDescriptor {
+            front_face: FrontFace::Ccw,
+            cull_mode: CullMode::Back,
+            depth_bias: 0,
+            depth_bias_slope_scale: 0.0,
+            depth_bias_clamp: 0.0,
+            clamp_depth: false,
+        }),
+        primitive_topology: PrimitiveTopology::TriangleList,
+        color_states: &[ColorStateDescriptor {
+            format: color_format,
+            alpha_blend: BlendDescriptor::REPLACE,
+            color_blend: BlendDescriptor::REPLACE,
+            write_mask: ColorWrite::ALL,
+        }],
+        depth_stencil_state: None,
+        vertex_state: VertexStateDescriptor {
+            index_format: IndexFormat::Uint16,
+            vertex_buffers: vertex_desc,
+        },
+        sample_count: 1,
+        sample_mask: !0,
+        alpha_to_coverage_enabled: false,
+    })
 }
