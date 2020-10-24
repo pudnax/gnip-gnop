@@ -1,7 +1,33 @@
 #![macro_use]
 
+use crate::math::Vec2;
+use crate::state::{Ball, Player};
+
+pub const PLAYER_SPEED: f32 = 0.05;
+pub const BALL_SPEED: f32 = 0.025;
+
+const BOUNCE_ANGLE: f32 = std::f32::consts::FRAC_PI_2;
+
+pub fn calc_ball_velocity(ball: &Ball, player: &Player) -> Vec2 {
+    let diff_y = ball.position.y - player.position.y;
+    let ratio = diff_y / player.size.y * 0.5;
+    Vec2 {
+        x: (BOUNCE_ANGLE * ratio).cos() * -player.position.x.signum(),
+        y: (BOUNCE_ANGLE * ratio).sin(),
+    } * BALL_SPEED
+}
+
 pub fn size_of_slice<T: Sized>(slice: &[T]) -> usize {
     std::mem::size_of::<T>() * slice.len()
+}
+
+#[macro_export]
+macro_rules! any {
+    ($x:expr, $($y:expr),+ $(,)?) => {
+        {
+            false $(|| $x == $y)+
+        }
+    };
 }
 
 #[macro_export]

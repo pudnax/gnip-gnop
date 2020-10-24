@@ -1,16 +1,17 @@
 #![allow(clippy::identity_op)]
 
-use crate::{math::Vec2, utils::size_of_slice};
+use crate::{
+    math::Vec2,
+    state::{Ball, Player},
+    util::size_of_slice,
+};
 use bytemuck::{Pod, Zeroable};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BufferAddress, InputStepMode, VertexBufferDescriptor,
 };
 
-pub struct Ball {
-    position: Vec2,
-    radius: f32,
-}
+pub const U32_SIZE: wgpu::BufferAddress = std::mem::size_of::<u32>() as wgpu::BufferAddress;
 
 #[repr(C)]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -42,13 +43,30 @@ impl QuadBufferBuilder {
         }
     }
 
-    pub fn push_ball(self, ball: Ball) -> Self {
-        let min_x = ball.position.x - ball.radius;
-        let min_y = ball.position.y - ball.radius;
-        let max_x = ball.position.x + ball.radius;
-        let max_y = ball.position.y + ball.radius;
+    pub fn push_ball(self, ball: &Ball) -> Self {
+        if ball.visible {
+            let min_x = ball.position.x - ball.radius;
+            let min_y = ball.position.y - ball.radius;
+            let max_x = ball.position.x + ball.radius;
+            let max_y = ball.position.y + ball.radius;
 
-        self.push_quad(min_x, min_y, max_x, max_y)
+            self.push_quad(min_x, min_y, max_x, max_y)
+        } else {
+            self
+        }
+    }
+
+    pub fn push_player(self, player: &Player) -> Self {
+        if player.visible {
+            self.push_quad(
+                player.position.x - player.size.x * 0.5,
+                player.position.y - player.size.y * 0.5,
+                player.position.x + player.size.x * 0.5,
+                player.position.y + player.size.y * 0.5,
+            )
+        } else {
+            self
+        }
     }
 
     pub fn push_quad(mut self, min_x: f32, min_y: f32, max_x: f32, max_y: f32) -> Self {
