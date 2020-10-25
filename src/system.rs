@@ -4,6 +4,10 @@ use crate::math::Vec2;
 use crate::state::{self, GameState};
 use crate::util;
 
+pub fn start_system<S: System>(system: &mut S, state: &mut state::State) {
+    system.start(state);
+}
+
 pub trait System {
     #[allow(unused_variables)]
     fn start(&mut self, state: &mut state::State) {}
@@ -76,9 +80,11 @@ impl System for MenuSystem {
 
         if state.play_button.focused && input.enter_pressed {
             events.push(state::Event::ButtonPressed);
+            state.prev_state = state::GameState::MainMenu;
             state.game_state = state::GameState::Serving;
         } else if state.quit_button.focused && input.enter_pressed {
             events.push(state::Event::ButtonPressed);
+            state.prev_state = state::GameState::MainMenu;
             state.game_state = state::GameState::Quiting;
         }
     }
@@ -119,6 +125,7 @@ impl System for PlaySystem {
         }
 
         if state.player1.score > 2 || state.player2.score > 2 {
+            state.prev_state = state::GameState::Playing;
             state.game_state = state::GameState::GameOver;
         }
     }
@@ -158,10 +165,12 @@ impl System for BallSystem {
 
         if state.ball.position.x > 1.0 {
             state.player1.score += 1;
+            state.prev_state = state::GameState::Playing;
             state.game_state = state::GameState::Serving;
             events.push(state::Event::Score(0));
         } else if state.ball.position.x < -1.0 {
             state.player2.score += 1;
+            state.prev_state = state::GameState::Playing;
             state.game_state = state::GameState::Serving;
             events.push(state::Event::Score(1));
         }
@@ -199,6 +208,7 @@ impl System for ServingSystem {
         let current_time = std::time::Instant::now();
         let delta_time = current_time - self.last_time;
         if delta_time.as_secs_f32() > 2.0 {
+            state.prev_state = state::GameState::Serving;
             state.game_state = state::GameState::Playing;
         }
     }
@@ -239,7 +249,28 @@ impl System for GameOverSystem {
         let current_time = std::time::Instant::now();
         let delta_time = current_time - self.last_time;
         if delta_time.as_secs_f32() > 1.0 {
+            state.prev_state = state::GameState::GameOver;
             state.game_state = state::GameState::MainMenu;
+        }
+    }
+}
+
+pub struct BaseSystem;
+impl System for BaseSystem {
+    fn start(&mut self, state: &mut state::State) {
+        state.game_state = state::GameState::Base;
+    }
+
+    fn update_state(
+        &self,
+        input: &input::Input,
+        state: &mut state::State,
+        _events: &mut Vec<state::Event>,
+    ) {
+        if input.space_pressed && state.game_state == state::GameState::Base {
+            state.game_state = state.prev_state;
+        } else if input.space_pressed {
+            state.game_state = state::GameState::Base;
         }
     }
 }

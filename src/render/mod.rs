@@ -205,22 +205,7 @@ impl Renderer {
         })
     }
 
-    pub fn render(&mut self) -> Result<()> {
-        let frame = match self.swap_chain.get_current_frame() {
-            Ok(frame) => Ok(frame.output),
-            Err(wgpu::SwapChainError::Outdated) => {
-                self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-                return Ok(());
-            }
-            Err(e) => Err(e),
-        }?;
-
-        let mut encoder = self
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
+    pub fn render_basic(&mut self, frame: &SwapChainTexture, mut encoder: CommandEncoder) {
         let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
             color_attachments: &[RenderPassColorAttachmentDescriptor {
                 attachment: &frame.view,
@@ -246,8 +231,6 @@ impl Renderer {
         drop(render_pass);
 
         self.queue.submit(std::iter::once(encoder.finish()));
-
-        Ok(())
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -271,6 +254,11 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("State Command Encoder"),
             });
+
+        if state.game_state == state::GameState::Base {
+            self.render_basic(&frame, encoder);
+            return Ok(());
+        }
 
         let num_indices = if state.ball.visible || state.player1.visible || state.player2.visible {
             let (stg_vertex, stg_index, num_indices) = QuadBufferBuilder::new()

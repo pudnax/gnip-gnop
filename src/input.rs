@@ -7,6 +7,7 @@ pub struct Input {
     pub p2_up_pressed: bool,
     pub p2_down_pressed: bool,
     pub enter_pressed: bool,
+    pub space_pressed: bool,
 }
 
 impl Input {
@@ -35,6 +36,10 @@ impl Input {
             }
             VirtualKeyCode::Return => {
                 self.enter_pressed = pressed;
+                true
+            }
+            VirtualKeyCode::Space => {
+                self.space_pressed = pressed;
                 true
             }
             _ => false,

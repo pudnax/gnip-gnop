@@ -102,6 +102,7 @@ fn main() -> Result<()> {
             ..Default::default()
         },
         game_state: state::GameState::MainMenu,
+        prev_state: state::GameState::Quiting,
     };
 
     let mut events = Vec::new();
@@ -112,6 +113,7 @@ fn main() -> Result<()> {
     let mut play_system = system::PlaySystem;
     let ball_system = system::BallSystem;
     let mut game_over_system = system::GameOverSystem::new();
+    let base_render_system = system::BaseSystem;
 
     let mut visiblity_system = system::VisibilitySystem;
     visiblity_system.start(&mut state);
@@ -148,7 +150,17 @@ fn main() -> Result<()> {
                     } => {
                         let input_handled = match state.game_state {
                             state::GameState::Quiting => true,
-                            _ => input.update(key, key_state),
+                            _ => {
+                                let handled = input.update(key, key_state);
+                                if key_state == &ElementState::Pressed {
+                                    base_render_system.update_state(
+                                        &input,
+                                        &mut state,
+                                        &mut events,
+                                    );
+                                }
+                                handled
+                            }
                         };
                         if !input_handled {
                             process_input(key_state, key, control_flow)
@@ -196,6 +208,17 @@ fn main() -> Result<()> {
                         }
                     }
                     state::GameState::Quiting => {}
+                    state::GameState::Base => {
+                        // base_render_system.update_state(&input, &mut state, &mut events);
+                        use state::GameState::*;
+                        match state.game_state {
+                            MainMenu => menu_system.start(&mut state),
+                            Playing => play_system.start(&mut state),
+                            Serving => serving_system.start(&mut state),
+                            GameOver => game_over_system.start(&mut state),
+                            Quiting | state::GameState::Base => {}
+                        }
+                    }
                 }
 
                 match renderer.render_state(&state) {

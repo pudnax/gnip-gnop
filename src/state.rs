@@ -7,6 +7,7 @@ pub enum GameState {
     Playing,
     GameOver,
     Quiting,
+    Base,
 }
 
 pub struct State {
@@ -20,6 +21,7 @@ pub struct State {
     pub player2_score: Text,
     pub win_text: Text,
     pub game_state: GameState,
+    pub prev_state: GameState,
 }
 
 pub struct Ball {
